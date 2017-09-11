@@ -92,6 +92,18 @@ def get_column_names(sample_df):
         hr_column = 'heart_rate'
         time_column = 'timestamp'
 
+    lat_column = None
+    if 'lat' in sample_df.columns:
+        lat_column = 'lat'
+    elif 'position_lat' in sample_df.columns:
+        lat_column = 'position_lat'
+
+    lng_column = None
+    if 'lon' in sample_df.columns:
+        lng_column = 'lon'
+    elif 'position_long' in sample_df.columns:
+        lng_column = 'position_long'
+
     if hr_column is None:
         raise NoHeartRateError('Did not find a heart rate column in the data')
 
@@ -101,13 +113,13 @@ def get_column_names(sample_df):
     elif 'dist' in sample_df.columns:
         distance_column = 'dist'
 
-    return hr_column, time_column, distance_column
+    return hr_column, time_column, distance_column, lat_column, lng_column
 
 
-def check_spinning_or_rolls(df, distance_column):
+def check_spinning_or_rolls(df, distance_column, lat_column, lng_column):
     return (sum(np.isnan(df[distance_column].values)) == len(df) 
-            or sum(np.isnan(df['lat'].values)) == len(df)
-            or sum(np.isnan(df['lon']).values) == len(df))
+            or sum(np.isnan(df[lat_column].values)) == len(df)
+            or sum(np.isnan(df[lng_column]).values) == len(df))
 
 
 def calculate_TRIMP(workout_file, a, b, rustHR, maxHR, is_male=True):
@@ -131,7 +143,7 @@ def calculate_TRIMP(workout_file, a, b, rustHR, maxHR, is_male=True):
     print('Searching for a column with heart rate, time and distance + checking whether the training was a spinning session or on rolls... ', end='')
     spinning_or_rolls = False
     try:
-        hr_column, time_column, distance_column = get_column_names(sample_df)
+        hr_column, time_column, distance_column, lat_column, lng_column = get_column_names(sample_df)
         if distance_column is None:
             spinning_or_rolls = True
     except NoHeartRateError:
@@ -141,14 +153,14 @@ def calculate_TRIMP(workout_file, a, b, rustHR, maxHR, is_male=True):
         # Convert the columns to their corresponding datatype
         sample_df[hr_column] = pd.to_numeric(sample_df[hr_column])
         sample_df[distance_column] = pd.to_numeric(sample_df[distance_column])
-        sample_df['lat'] = pd.to_numeric(sample_df['lat'])
-        sample_df['lon'] = pd.to_numeric(sample_df['lon'])
+        sample_df['lat'] = pd.to_numeric(sample_df[lat_column])
+        sample_df['lon'] = pd.to_numeric(sample_df[lng_column])
         try:
             sample_df[time_column] = pd.to_datetime(sample_df[time_column])
             sample_df[time_column] = sample_df[time_column].apply(lambda x: x.replace(microsecond=0))   # Remove microseconds!
         except:
             raise WrongDateTimeFormat('Could not parse the time column!')
-        spinning_or_rolls = check_spinning_or_rolls(sample_df, distance_column)
+        spinning_or_rolls = check_spinning_or_rolls(sample_df, distance_column, lat_column, lng_column)
     print('OK')
 
     # Make sure we have a record for every second. Linear interpolation for the missing seconds
